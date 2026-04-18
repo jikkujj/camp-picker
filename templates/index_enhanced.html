@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frisco Camp Picker</title>
+    <style>
+        :root {
+            --bg: #f3efe7;
+            --panel: #fffaf2;
+            --ink: #1f2937;
+            --muted: #6b7280;
+            --accent: #0f766e;
+            --accent-2: #b45309;
+            --line: #e5dccb;
+        }
+        body { margin: 0; font-family: Arial, sans-serif; background: linear-gradient(180deg, #f7f3ea 0%, #efe7d6 100%); color: var(--ink); }
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .topbar { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .title { margin: 0; font-size: 34px; }
+        .subtitle { margin: 6px 0 0; color: var(--muted); }
+        .nav a, .btn { display: inline-block; text-decoration: none; border-radius: 999px; padding: 10px 14px; margin-right: 8px; border: 1px solid var(--line); background: white; color: var(--ink); }
+        .btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+        .panel { background: rgba(255,250,242,.9); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 12px 30px rgba(31,41,55,.07); margin-top: 16px; }
+        .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        label { display:block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+        input, select { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: white; }
+        .meta { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); }
+        .list { margin-top: 16px; display: grid; gap: 14px; }
+        .camp { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+        .camp h2 { margin: 0 0 8px; font-size: 22px; }
+        .chips { display:flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+        .chip { font-size: 12px; padding: 5px 10px; border-radius: 999px; background: #eef7f6; color: var(--accent); border: 1px solid #cce8e4; }
+        .sessions { display:grid; gap: 10px; margin-top: 12px; }
+        .session { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+        .session strong { color: var(--accent-2); }
+        .links { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .link { display:inline-block; text-decoration:none; padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: white; }
+        .link.primary { background: var(--accent); border-color: var(--accent); color: white; }
+        .link.secondary { background: #fff; }
+        .count { margin: 0; font-weight: 700; }
+        .muted { color: var(--muted); }
+        @media (max-width: 700px) {
+            .title { font-size: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="topbar">
+            <div>
+                <h1 class="title">Frisco Camp Picker</h1>
+                <p class="subtitle">Compare camps by grade, date, time, and keyword. Open the original registration page any time.</p>
+            </div>
+            <div class="nav">
+                <a class="btn primary" href="http://127.0.0.1:5000/" target="_blank" rel="noopener noreferrer">Back to original page</a>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="filters">
+                <div>
+                    <label for="grade">Grade</label>
+                    <select id="grade"><option value="">All grades</option></select>
+                </div>
+                <div>
+                    <label for="day">Date</label>
+                    <select id="day"><option value="">All dates</option></select>
+                </div>
+                <div>
+                    <label for="time">Time</label>
+                    <select id="time"><option value="">All times</option></select>
+                </div>
+                <div>
+                    <label for="search">Search</label>
+                    <input id="search" type="text" placeholder="robotics, theater, science...">
+                </div>
+            </div>
+            <div class="meta">
+                <div id="count" class="count">Loading camps...</div>
+                <div class="muted">Each camp has both a <strong>Register page</strong> link and a link back to the <strong>Original page</strong>.</div>
+            </div>
+        </div>
+
+        <div id="camps" class="list"></div>
+    </div>
+
+    <script>
+        let allCamps = [];
+
+        function clean(text) {
+            return (text || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function parseIndividualGrades(gradeStr) {
+            if (!gradeStr) return [];
+            const cleaned = gradeStr.replace(' grade', '').trim();
+            const parts = cleaned.split('-');
+            if (parts.length === 1) return [cleaned + ' grade'];
+            const start = parseInt(parts[0].replace(/[^\d]/g, ''), 10);
+            const end = parseInt(parts[1].replace(/[^\d]/g, ''), 10);
+            if (Number.isNaN(start) || Number.isNaN(end)) return [gradeStr];
+            const grades = [];
+            for (let i = start; i <= end; i++) {
+                let suffix = 'th';
+                if (i === 1) suffix = 'st';
+                else if (i === 2) suffix = 'nd';
+                else if (i === 3) suffix = 'rd';
+                grades.push(i + suffix + ' grade');
+            }
+            return grades;
+        }
+
+        function getRegistrationUrl(camp) {
+            return camp.event_url || camp.detail_url || '';
+        }
+
+        function sessionText(camp, session) {
+            return clean([camp.title || camp.detail_title, session.dates, session.time, session.grade_level].join(' ')).toLowerCase();
+        }
+
+        async function loadCamps() {
+            const response = await fetch('/api/camps');
+            allCamps = await response.json();
+            populateFilters();
+            displayCamps();
+        }
+
+        function populateFilters() {
+            const gradeSet = new Set();
+            const dateSet = new Set();
+            const timeSet = new Set();
+
+            allCamps.forEach(camp => {
+                (camp.sessions || []).forEach(session => {
+                    parseIndividualGrades(session.grade_level).forEach(g => gradeSet.add(g));
+                    if (session.dates) dateSet.add(session.dates);
+                    if (session.time) timeSet.add(session.time);
+                });
+            });
+
+            const gradeSelect = document.getElementById('grade');
+            Array.from(gradeSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(grade => {
+                const opt = document.createElement('option');
+                opt.value = grade;
+                opt.textContent = grade;
+                gradeSelect.appendChild(opt);
+            });
+
+            const daySelect = document.getElementById('day');
+            Array.from(dateSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(day => {
+                const opt = document.createElement('option');
+                opt.value = day;
+                opt.textContent = day;
+                daySelect.appendChild(opt);
+            });
+
+            const timeSelect = document.getElementById('time');
+            Array.from(timeSet).sort((a, b) => a.localeCompare(b, undefined, {numeric: true})).forEach(time => {
+                const opt = document.createElement('option');
+                opt.value = time;
+                opt.textContent = time;
+                timeSelect.appendChild(opt);
+            });
+        }
+
+        function displayCamps() {
+            const selectedGrade = document.getElementById('grade').value;
+            const selectedDay = document.getElementById('day').value;
+            const selectedTime = document.getElementById('time').value;
+            const search = document.getElementById('search').value.trim().toLowerCase();
+            const container = document.getElementById('camps');
+            container.innerHTML = '';
+
+            let shown = 0;
+
+            allCamps.forEach(camp => {
+                const sessions = (camp.sessions || []).filter(session => {
+                    const gradeOk = !selectedGrade || parseIndividualGrades(session.grade_level).includes(selectedGrade);
+                    const dayOk = !selectedDay || session.dates === selectedDay;
+                    const timeOk = !selectedTime || session.time === selectedTime;
+                    const searchOk = !search || sessionText(camp, session).includes(search);
+                    return gradeOk && dayOk && timeOk && searchOk;
+                });
+
+                if (!sessions.length) return;
+
+                shown += 1;
+                const regUrl = getRegistrationUrl(camp);
+                const originalUrl = camp.detail_url || camp.event_url || '';
+                const campDiv = document.createElement('div');
+                campDiv.className = 'camp';
+                campDiv.innerHTML = `
+                    <h2>${camp.title || camp.detail_title || 'Untitled camp'}</h2>
+                    <div class="chips">
+                        ${camp.location || camp.venue ? `<span class="chip">${clean(camp.location || camp.venue)}</span>` : ''}
+                        ${camp.address ? `<span class="chip">${clean(camp.address)}</span>` : ''}
+                    </div>
+                    ${camp.description ? `<p>${clean(camp.description)}</p>` : ''}
+                    <div class="links">
+                ${regUrl ? `<a class="link primary" href="${regUrl}" target="_blank" rel="noopener noreferrer">Register page</a>` : ''}
+                ${originalUrl ? `<a class="link secondary" href="${originalUrl}" target="_blank" rel="noopener noreferrer">Camp page</a>` : ''}
+                    </div>
+                    <div class="sessions"></div>
+                `;
+
+                const sessionsWrap = campDiv.querySelector('.sessions');
+                sessions.forEach(session => {
+                    const sessionDiv = document.createElement('div');
+                    sessionDiv.className = 'session';
+                    sessionDiv.innerHTML = `
+                        <div><strong>Dates:</strong> ${clean(session.dates || 'TBD')}</div>
+                        <div><strong>Time:</strong> ${clean(session.time || 'TBD')}</div>
+                        <div><strong>Grade:</strong> ${clean(session.grade_level || 'TBD')}</div>
+                    `;
+                    sessionsWrap.appendChild(sessionDiv);
+                });
+
+                container.appendChild(campDiv);
+            });
+
+            document.getElementById('count').textContent = `Showing ${shown} camp${shown === 1 ? '' : 's'}`;
+            if (!shown) {
+                container.innerHTML = '<div class="panel">No camps match those filters.</div>';
+            }
+        }
+
+        ['grade', 'day', 'time', 'search'].forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('change', displayCamps);
+            el.addEventListener('input', displayCamps);
+        });
+
+        loadCamps();
+    </script>
+</body>
+</html>

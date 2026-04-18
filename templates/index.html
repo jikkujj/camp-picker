@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frisco Summer Camps</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .filter { margin-bottom: 20px; }
+        .camp { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .session { margin-left: 20px; background: #f9f9f9; padding: 5px; }
+        .register-link {
+            display: inline-block;
+            margin: 10px 0;
+            padding: 8px 12px;
+            background: #0b63ce;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Frisco Summer Camps</h1>
+    <div class="filter">
+        <label for="grade">Filter by Grade:</label>
+        <select id="grade">
+            <option value="">All Grades</option>
+        </select>
+    </div>
+    <div id="camps"></div>
+
+    <script>
+        let allCamps = [];
+        let grades = new Set();
+
+        function parseIndividualGrades(gradeStr) {
+            if (!gradeStr) return [];
+            const cleaned = gradeStr.replace(' grade', '').trim();
+            const parts = cleaned.split('-');
+            if (parts.length === 1) {
+                return [parts[0] + ' grade'];
+            } else {
+                const start = parseInt(parts[0].replace(/[^\d]/g, ''));
+                const end = parseInt(parts[1].replace(/[^\d]/g, ''));
+                const grades = [];
+                for (let i = start; i <= end; i++) {
+                    let suffix = 'th';
+                    if (i === 1) suffix = 'st';
+                    else if (i === 2) suffix = 'nd';
+                    else if (i === 3) suffix = 'rd';
+                    grades.push(i + suffix + ' grade');
+                }
+                return grades;
+            }
+        }
+
+        async function loadCamps() {
+            const response = await fetch('/api/camps');
+            allCamps = await response.json();
+            populateGrades();
+            displayCamps();
+        }
+
+        function getRegistrationUrl(camp) {
+            return camp.event_url || camp.detail_url || '';
+        }
+
+        function populateGrades() {
+            grades.clear();
+            allCamps.forEach(camp => {
+                camp.sessions.forEach(session => {
+                    const individualGrades = parseIndividualGrades(session.grade_level);
+                    individualGrades.forEach(grade => grades.add(grade));
+                });
+            });
+            const select = document.getElementById('grade');
+            const sortedGrades = Array.from(grades).sort((a, b) => {
+                const aNum = a.replace(/[^\d]/g, '');
+                const bNum = b.replace(/[^\d]/g, '');
+                return parseInt(aNum) - parseInt(bNum);
+            });
+            sortedGrades.forEach(grade => {
+                const option = document.createElement('option');
+                option.value = grade;
+                option.textContent = grade;
+                select.appendChild(option);
+            });
+        }
+
+        function displayCamps() {
+            const selectedGrade = document.getElementById('grade').value;
+            const container = document.getElementById('camps');
+            container.innerHTML = '';
+
+            let campCount = 0;
+
+            allCamps.forEach(camp => {
+                const matchingSessions = camp.sessions.filter(session => {
+                    if (!selectedGrade) return true;
+                    const individualGrades = parseIndividualGrades(session.grade_level);
+                    return individualGrades.includes(selectedGrade);
+                });
+
+                if (matchingSessions.length > 0) {
+                    campCount++;
+                    const registrationUrl = getRegistrationUrl(camp);
+                    const campDiv = document.createElement('div');
+                    campDiv.className = 'camp';
+                    campDiv.innerHTML = `
+                        <h2>${camp.title || camp.detail_title}</h2>
+                        <p><strong>Location:</strong> ${camp.location || camp.venue}</p>
+                        <p><strong>Address:</strong> ${camp.address}</p>
+                        <p><strong>Description:</strong> ${camp.description}</p>
+                        <p><strong>Event Policy:</strong> ${camp.event_policy}</p>
+                        ${registrationUrl ? `<p><a class="register-link" href="${registrationUrl}" target="_blank" rel="noopener noreferrer">Register</a></p>` : ''}
+                        <h3>Sessions:</h3>
+                    `;
+                    matchingSessions.forEach(session => {
+                        const sessionDiv = document.createElement('div');
+                        sessionDiv.className = 'session';
+                        sessionDiv.innerHTML = `
+                            <p><strong>Dates:</strong> ${session.dates}</p>
+                            <p><strong>Time:</strong> ${session.time}</p>
+                            <p><strong>Grade Level:</strong> ${session.grade_level}</p>
+                            ${registrationUrl ? `<p><a class="register-link" href="${registrationUrl}" target="_blank" rel="noopener noreferrer">Register for this camp</a></p>` : ''}
+                        `;
+                        campDiv.appendChild(sessionDiv);
+                    });
+                    container.appendChild(campDiv);
+                }
+            });
+
+            const filterText = selectedGrade ? ` for ${selectedGrade}` : '';
+            const countDiv = document.createElement('div');
+            countDiv.innerHTML = `<h1>Showing ${campCount} camp${campCount !== 1 ? 's' : ''}${filterText}</h1>`;
+            container.insertBefore(countDiv, container.firstChild);
+        }
+
+        document.getElementById('grade').addEventListener('change', displayCamps);
+
+        loadCamps();
+    </script>
+</body>
+</html>
