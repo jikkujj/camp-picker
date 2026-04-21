@@ -411,16 +411,16 @@
                             <p class="summary">${sessions.length} session${sessions.length === 1 ? '' : 's'} match your filters.</p>
                         </div>
                         <div class="decision">
-                            <a href="#" class="link yes" data-decision="yes">Yes</a>
-                            <a href="#" class="link maybe" data-decision="maybe">Maybe</a>
-                            <a href="#" class="link no" data-decision="no">No</a>
+                            <a href="#" class="link yes" data-decision="schedule">Add to schedule</a>
+                            <a href="#" class="link maybe" data-decision="backup">Keep as backup</a>
+                            <a href="#" class="link no" data-decision="skip">Skip</a>
                         </div>
                     </div>
                     <div class="chips">
                         ${camp.location || camp.venue ? `<span class="chip">${clean(camp.location || camp.venue)}</span>` : ''}
                         ${camp.address ? `<span class="chip">${clean(camp.address)}</span>` : ''}
                         ${entry.recommended ? `<span class="chip">Recommended for 2nd grade</span>` : ''}
-                        ${entry.shortlist ? `<span class="chip">Shortlist: ${entry.shortlist}</span>` : ''}
+                        ${entry.shortlist ? `<span class="chip">${entry.shortlist === 'schedule' ? 'Added to schedule' : entry.shortlist === 'backup' ? 'Backup choice' : 'Skipped'}</span>` : ''}
                         ${entry.selectedSession ? `<span class="chip">Chosen session set</span>` : ''}
                     </div>
                     <div class="summary">${sessions.map(s => `${clean(s.dates)} at ${clean(s.time)}`).join(' | ')}</div>
@@ -485,9 +485,9 @@
                         e.preventDefault();
                         const decision = link.getAttribute('data-decision');
                         setShortlist(camp, decision);
-                        if (decision === 'no') {
+                        if (decision === 'skip') {
                             localStorage.removeItem(`camp_session:${camp.event_id || camp.detail_url || camp.title}`);
-                        } else if (decision === 'yes') {
+                        } else if (decision === 'schedule') {
                             const selected = ensureSelectedSession(camp, sessions);
                             if (!selected) {
                                 alert('This camp conflicts with your current schedule, so it was not added.');
